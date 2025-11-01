@@ -1,0 +1,5 @@
+stockstats
+pandas
+yfinance
+lxml
+dotenv
