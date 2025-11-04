@@ -1,6 +1,35 @@
 # FinBot
 
-FinBot is a Python-based financial trading bot that automates stock trading signals generation and execution for S&P 500 stocks. It includes functionality for data fetching, signal generation, email notifications, and trade execution.
+FinBot is a **Python-based backtestable trading system** for the S&P 500. 
+The system is fully modular and designed for research, backtesting, and future live execution.
+It automates stock trading signals generation and execution for S&P 500 stocks. 
+It includes functionality for data fetching, signal generation, email notifications, and trade execution.
+
+## Key Features
+
+| Feature | Description |
+|-------|-----------|
+| **Multi-Indicator Scoring** | Combines MA Crossover, RSI, MACD, and Bollinger Bands into a normalized composite score |
+| **Daily Signal Generation** | Buy/Sell/Hold signals with to execute on next-day open |
+| **Backtesting Engine** | Full event-driven simulation with slippage, fees, and equal-weight allocation |
+| **Risk Management** | Automatic stop-loss (5%) and take-profit (10%) on all entries |
+| **Performance Metrics** | CAGR, Total Return, Max Drawdown, Sharpe Ratio, Trade Count |
+| **Portfolio Tracking** | Cash, positions, equity curve, full trade log |
+| **CSV Persistence** | Save/load portfolio state for continuity |
+
+## Current Backtest Result (1-Year, 500 S&P Stocks)
+
+```text
+Start:          2024-11-04
+End:            2025-10-24
+Start Equity:   $1,000.00
+End Equity:     $936.92
+Total Return:   -6.31%
+CAGR:           -6.50%
+Max Drawdown:   -9.23%
+Sharpe (naive): -0.80
+Trades:         317
+
 
 ## Components
 
@@ -100,3 +129,24 @@ src/finbot/
   - `positions.csv`: Active positions
   - `trades.csv`: Historical trades
   - `equity.csv`: Portfolio value history
+
+
+  #TODO
+  Add dynamic target and stop loss
+  
+
+## `backtest.py` Execution Flow (Function Calls)
+
+```mermaid
+flowchart TD
+    A[__main__] --> B[get_sp500_tickers()]
+    B --> C[random.sample(500)]
+    C --> D[get_data_cached()]
+    D --> E[algorithm() → signals_dict]
+    E --> F[backtest(signals_dict)]
+    F --> G[Portfolio.__init__()]
+    G --> H[Loop: execute_user_for_date()]
+    H --> I[port.mark_to_market()]
+    I --> J[Compute metrics]
+    J --> K[print(summary)]
+    K --> L[Save CSVs]

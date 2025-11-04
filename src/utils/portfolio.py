@@ -2,11 +2,13 @@ import pandas as pd
 import os 
 
 class Portfolio:
-    def __init__(self,starting_cash=1_000,fee_bps=5,slippage_bps=1):
+    def __init__(self,starting_cash=1_000,fee_bps=5,slippage_bps=1,stop_pct=0.07, target_pct=0.15):
         self.cash = float(starting_cash)
         self.positions = {}
         self.fee_bps = float(fee_bps)
         self.slippage_bps = float(slippage_bps)
+        self.stop_pct = float(stop_pct)
+        self.target_pct = float(target_pct)
         self.trades = []
         self.equity = []
     
@@ -18,7 +20,7 @@ class Portfolio:
         mult = 1+ (self.slippage_bps/10_000) if side == "buy" else 1-(self.slippage_bps/10_000)
         return raw_price*mult
     
-    def buy_cash_all(self,ticker,price,date,cash_to_use=None):
+    def buy_cash_all(self,ticker,price,date,cash_to_use=None, reason="indicator"):
         if cash_to_use is None:
             cash_to_use =self.cash
         if cash_to_use <= 0:
@@ -33,27 +35,39 @@ class Portfolio:
         if total > self.cash:
             return 
         self.cash -= total
-        self.positions[ticker] = self.positions.get(ticker,0) + shares
-        self.trades.append({"Date":date,"Ticker":ticker,"Side":"BUY", "Price":px, "Shares":shares,"Fee":fee})
+        entry_price = px
+        stop_loss = entry_price * (1 - self.stop_pct) if self.stop_pct > 0 else None
+        target = entry_price * (1 + self.target_pct) if self.target_pct > 0 else None
+
+        self.positions[ticker] = {
+        'shares': shares,
+        'entry_price': entry_price,
+        'stop_loss': stop_loss,
+        'target': target}
+        self.trades.append({"Date": date, "Ticker": ticker, "Side": "BUY", "Price": px, "Shares": shares, "Fee": fee, "Reason": reason})
     
-    def sell_all(self, ticker, price, date):
-        shares = int(self.positions.get(ticker,0))
-        if shares <=0:
-            return 
-        px = self._exec_price(price,"sell")
-        notional = shares*px
+    def sell_all(self, ticker, price, date, reason="indicator"):
+        if ticker not in self.positions:
+            return
+        shares = self.positions[ticker]['shares']
+        if shares <= 0:
+            return
+        px = self._exec_price(price, "sell")
+        notional = shares * px
         fee = self._apply_costs(notional)
-        self.cash += (notional-fee)
-        self.positions[ticker] = 0
-        self.trades.append({"Date": date, "Ticker": ticker, "Side": "SELL", "Price": px, "Shares": shares, "Fee": fee})
+        self.cash += (notional - fee)
+        del self.positions[ticker]  
+        self.trades.append({"Date": date, "Ticker": ticker, "Side": "SELL", "Price": px, "Shares": shares, "Fee": fee, "Reason": reason})
 
     def mark_to_market(self,date,close_prices:dict):
         pos_value = 0.0
-        for tkr, sh in self.positions.items():
-            if sh and tkr in close_prices:
+        for tkr, pos in self.positions.items():
+            sh = pos['shares']
+            if sh > 0 and tkr in close_prices:
                 pos_value += sh * float(close_prices[tkr])
         equity = self.cash + pos_value
         self.equity.append({"Date": date, "Equity": equity, "Cash": self.cash, "PosValue": pos_value})
+
 
     def total_value(self):
         if not self.equity:
@@ -70,10 +84,11 @@ def save_portfolio_csv(port):
     pd.DataFrame([{"Cash": port.cash}]).to_csv(_csv_path("cash.csv"), index=False)
     # positions
     pos_df = pd.DataFrame(
-        [{"Ticker": t, "Shares": int(sh)} for t, sh in port.positions.items() if int(sh) != 0]
+    [{"Ticker": t, "Shares": pos['shares'], "EntryPrice": pos['entry_price'], "StopLoss": pos['stop_loss'], "Target": pos['target']}
+     for t, pos in port.positions.items() if pos['shares'] > 0]
     )
     if pos_df.empty:
-        pos_df = pd.DataFrame(columns=["Ticker","Shares"])
+        pos_df = pd.DataFrame(columns=["Ticker", "Shares", "EntryPrice", "StopLoss", "Target"])
     pos_df.to_csv(_csv_path("positions.csv"), index=False)
     # trades
     trades_df = pd.DataFrame(port.trades)
@@ -88,7 +103,6 @@ def save_portfolio_csv(port):
     elif not os.path.exists(_csv_path("equity.csv")):
         pd.DataFrame(columns=["Date","Equity","Cash","PosValue"]).to_csv(_csv_path("equity.csv"), index=False)
 
-
 def load_portfolio_csv(starting_cash=1_000, fee_bps=5, slippage_bps=1):
     port = Portfolio(starting_cash=starting_cash, fee_bps=fee_bps, slippage_bps=slippage_bps)
     # cash
@@ -100,7 +114,12 @@ def load_portfolio_csv(starting_cash=1_000, fee_bps=5, slippage_bps=1):
     if os.path.exists(_csv_path("positions.csv")):
         pdf = pd.read_csv(_csv_path("positions.csv"))
         for _, r in pdf.iterrows():
-            port.positions[str(r["Ticker"])] = int(r["Shares"])
+            port.positions[str(r["Ticker"])] = {
+                'shares': int(r["Shares"]),
+                'entry_price': float(r.get("EntryPrice", 0)),  # Default 0 if missing (for old CSVs)
+                'stop_loss': float(r.get("StopLoss", None)),
+                'target': float(r.get("Target", None))
+            }
     # trades
     if os.path.exists(_csv_path("trades.csv")):
         tdf = pd.read_csv(_csv_path("trades.csv"))
@@ -113,3 +132,5 @@ def load_portfolio_csv(starting_cash=1_000, fee_bps=5, slippage_bps=1):
         if not edf.empty:
             port.equity = edf.to_dict("records")
     return port
+
+
