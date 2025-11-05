@@ -9,8 +9,8 @@ def get_sp500_tickers():
     return [s.replace(".", "-").strip() for s in syms]
 
 def get_data_cached(tickers,start,end,interval="1d", cache_dir="data/data_cache"):
-    start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
-    last_needed = (pd.Timestamp(end) - pd.Timedelta(days=1)).date()
+    start_ts, end_ts = pd.Timestamp(start).normalize(), pd.Timestamp(end).normalize()
+    last_needed = (end_ts - pd.Timedelta(days=1)).date()
     os.makedirs(cache_dir,exist_ok=True)
     to_fetch = []
     results = {}
@@ -19,8 +19,8 @@ def get_data_cached(tickers,start,end,interval="1d", cache_dir="data/data_cache"
         if os.path.exists(fn):
             df = pd.read_csv(fn,parse_dates=["Date"],index_col="Date").sort_index()
             have_lo, have_hi = df.index.min().date(), df.index.max().date()
-            if have_lo <= start and have_hi >= last_needed:
-                results[t] = df.loc[start_ts:last_needed]
+            if have_lo <= start_ts.date() and have_hi >= last_needed:
+                results[t] = df.loc[start_ts:end_ts]
                 continue
         to_fetch.append(t)
 

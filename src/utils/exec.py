@@ -1,4 +1,4 @@
-# src/finbot/exec.py
+# exec.py
 from __future__ import annotations
 import pandas as pd
 import numpy as np
@@ -24,7 +24,7 @@ def _collect_signal_trades(signals_dict: Dict[str, pd.DataFrame],posture: dict,t
     
     if todays_buys_candidates:
         todays_buys_candidates.sort(key=lambda x: x[2], reverse=True)
-        todays_buys = [(tkr, px) for tkr, px, _ in todays_buys_candidates[:top_n_buys]]
+        todays_buys = todays_buys_candidates[:top_n_buys]
     else:
         todays_buys = []
     return todays_buys, todays_sells
@@ -63,15 +63,28 @@ def _exec_sells(signals_dict: Dict[str, pd.DataFrame],port: List[str],posture: d
 
     return posture,port
 
-def _exec_buys(port: List[str],posture: dict,trade_date: date,todays_buys,allocate_equal_on_buy):
+def _exec_buys(port: List[str],posture: dict,trade_date: date,todays_buys,allocate_equal_on_buy,max_daily_exposure_pct):
     # 3) Execute buys (allocate equally across new buys if requested)
-    if todays_buys:
-        if allocate_equal_on_buy:
-            cash_each = port.cash / len(todays_buys)
-            for tkr, px in todays_buys:
-                port.buy_cash_all(tkr, px, trade_date, cash_to_use=cash_each, reason="indicator")
-                if tkr in port.positions and port.positions[tkr]['shares'] > 0:
-                    posture[tkr] = 1
+    if not todays_buys:
+        return posture, port
+    max_cash_to_deploy = port.total_value() * max_daily_exposure_pct
+    cash_to_deploy = min(port.cash, max_cash_to_deploy)
+
+    if allocate_equal_on_buy:
+        cash_per_buy = cash_to_deploy / len(todays_buys)
+        for tkr, px, _score in todays_buys:
+            port.buy_cash_all(tkr, px, trade_date, cash_to_use=cash_per_buy, reason="indicator")
+            if port.positions.get(tkr, {}).get("shares", 0) > 0:
+                posture[tkr] = 1
+    else:
+        scores = [max(s, 1e-9) for _t, _p, s in todays_buys]
+        total_score = sum(scores)
+        for (tkr, px, score), weight in zip(todays_buys, [s/total_score for s in scores]):
+            cash_this_buy = cash_to_deploy * weight
+            port.buy_cash_all(tkr, px, trade_date,cash_to_use=cash_this_buy,reason="indicator")
+            if port.positions.get(tkr, {}).get("shares", 0) > 0:
+                posture[tkr] = 1
+
 
     return posture,port
 
@@ -87,11 +100,11 @@ def _mark_to_mark(signals_dict: Dict[str, pd.DataFrame],port: List[str],trade_da
 
 
 
-def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],posture,trade_date: date,allocate_equal_on_buy, top_n_buys):
+def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],posture,trade_date: date,allocate_equal_on_buy, top_n_buys,max_daily_exposure_pct):
 
     todays_buys,todays_sells=_collect_signal_trades(signals_dict,posture,trade_date,top_n_buys)
     posture,port = _exec_sells(signals_dict,port,posture,trade_date,todays_sells)
-    posture,port = _exec_buys(port,posture,trade_date,todays_buys,allocate_equal_on_buy)
+    posture,port = _exec_buys(port,posture,trade_date,todays_buys,allocate_equal_on_buy,max_daily_exposure_pct)
     port = _mark_to_mark(signals_dict,port,trade_date)
     
     return port, posture

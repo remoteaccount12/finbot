@@ -1,3 +1,4 @@
+#backtest
 import pandas as pd
 import numpy as np
 import random
@@ -20,7 +21,7 @@ def backtest(signals_dict_or_df,config):
     posture = {t: 0 for t in signals_dict}
     
     for trade_date in all_dates:
-        port, posture = execute_user_for_date(signals_dict,port,posture,trade_date,config.backtest["allocate_equal_on_buy"],config.backtest["top_n_buys"])
+        port, posture = execute_user_for_date(signals_dict,port,posture,trade_date,config.backtest["allocate_equal_on_buy"],config.backtest["top_n_buys"],config.backtest["max_daily_exposure_pct"])
         
     equity_df = pd.DataFrame(port.equity).set_index("Date").sort_index()
     trades_df = pd.DataFrame(port.trades)
@@ -35,13 +36,13 @@ def backtest(signals_dict_or_df,config):
         summary = {
             "Start": equity_df.index[0],
             "End": equity_df.index[-1],
-            "StartEquity": equity_df["Equity"].iloc[0],
-            "EndEquity": equity_df["Equity"].iloc[-1],
-            "TotalReturn": cum_ret,
-            "CAGR": cagr,
-            "MaxDrawdown": dd,
-            "Sharpe(naive)": sharpe,
-            "Trades": len(trades_df) if not trades_df.empty else 0,
+            "StartEquity": round(equity_df["Equity"].iloc[0].item(),2), 
+            "EndEquity": round(equity_df["Equity"].iloc[-1].item(),2),
+            "TotalReturn": round(cum_ret.item(),2), 
+            "CAGR": round(cagr.item(),2),
+            "MaxDrawdown": round(dd.item(),2),
+            "Sharpe(naive)": round(sharpe.item(),2),
+            "Trades": int(len(trades_df)) if not trades_df.empty else 0, 
         }
     else:
         summary = {}

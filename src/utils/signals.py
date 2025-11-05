@@ -1,3 +1,4 @@
+#signals
 import numpy as np
 import pandas as pd 
 from dateutil.relativedelta import relativedelta
@@ -75,8 +76,8 @@ def algorithm(input_df,start,end,config,interval='1d'):
     # Aggregate score = simple average
     score_df = pd.concat(scores, axis=1)
     input_df["RawScore"] = score_df.mean(axis=1)
-    input_df["RawSignal"] = np.where(input_df["RawScore"] > 0.99, "Buy",
-                           np.where(input_df["RawScore"] < -0.99, "Sell", "Hold"))
+    input_df["RawSignal"] = np.where(input_df["RawScore"] > config.signals["score_threshold_buy"], "Buy",
+                           np.where(input_df["RawScore"] < config.signals["score_threshold_sell"], "Sell", "Hold"))
     input_df["Signal"] = input_df["RawSignal"].shift(1)
     input_df["Score"] = input_df["RawScore"].shift(1)
     input_df["ExecPrice"] = input_df["Open"]
