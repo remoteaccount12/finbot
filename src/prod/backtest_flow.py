@@ -44,8 +44,7 @@ run_record = {
         "Start": res["summary"]["Start"].isoformat(),   
         "End": res["summary"]["End"].isoformat(),       
     },
-    "num_trades": len(res["trades"]),
-    "final_equity": res["summary"].get("EndEquity", res["summary"].get("StartEquity")),
+    "num_trades": len(res["trades"])
 }
 
 
@@ -54,11 +53,16 @@ print("BACKTEST RUN LOGGED")
 print("="*60)
 print(f"File → {RESULTS_JSONL}")
 print(f"Timestamp → {run_record['timestamp']}")
-print(f"Final Equity → ${run_record['final_equity']:,.2f}")
+print(f"Start Equity → ${run_record['summary']['StartEquity']:,.2f}")
+print(f"Final Equity → ${run_record['summary']['EndEquity']:,.2f}")
 print(f"CAGR → {run_record['summary'].get('CAGR', 0):.1%}")
+print(f"Sharpe(naive) → {run_record['summary'].get('Sharpe(naive)', 0)}")
 print(f"Trades → {run_record['num_trades']}")
-print(f"Config → allocate_equal={config.backtest['allocate_equal_on_buy']}, "
-      f"threshold={config.signals['score_threshold_buy']}")
+print(f"Backtest Config → allocate_equal={config.backtest['allocate_equal_on_buy']}, "
+      f"max_daily_exposure_pct={config.backtest['max_daily_exposure_pct']}, "
+      f"top_n_buys={config.backtest['top_n_buys']}")
+print(f"Signals Config → buy threshold={config.signals['score_threshold_buy']}, "
+      f"indicators={config.signals['indicators']}")
 print("="*60 + "\n")
 
 with open(RESULTS_JSONL, "a", encoding="utf-8") as f:

@@ -54,6 +54,14 @@ def _bb_signal(df: pd.DataFrame, config) -> pd.Series:
     return np.where(df["Close"] < lower, 1.0,
            np.where(df["Close"] > upper, -1.0, 0.0))
 
+def _atr(df: pd.DataFrame, config) -> pd.Series:
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low,high_close,low_close],axis=1).max(axis=1)
+    return tr.rolling(window=config.signals['atr_signal']['period'],min_periods=1).mean()
+
+
 _INDICATOR_MAP = {
     "ma_cross": _ma_cross,
     "rsi_signal": _rsi_signal,
@@ -65,7 +73,7 @@ _INDICATOR_MAP = {
 def algorithm(input_df,start,end,config,interval='1d'):
     if input_df.empty:
         return None
-    
+    input_df["ATR"] = _atr(input_df,config)
     ind_list = config.signals["indicators"]
     scores = []
     for i, fn in enumerate(ind_list):
@@ -81,6 +89,8 @@ def algorithm(input_df,start,end,config,interval='1d'):
     input_df["Signal"] = input_df["RawSignal"].shift(1)
     input_df["Score"] = input_df["RawScore"].shift(1)
     input_df["ExecPrice"] = input_df["Open"]
+    
+    input_df["ATR_at_Entry"] = input_df["ATR"].shift(1)
     return input_df
 
 

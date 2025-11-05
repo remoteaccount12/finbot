@@ -2,16 +2,23 @@
 import pandas as pd 
 import os 
 
+
 class Portfolio:
-    def __init__(self,starting_cash,fee_bps,slippage_bps,stop_pct, target_pct):
-        self.cash = float(starting_cash)
+    def __init__(self,config,signals_dict):
+                #  starting_cash,fee_bps,slippage_bps,stop_pct, target_pct,signals_dict):
+        self.cash = float(config.backtest["starting_cash"])
         self.positions = {}
-        self.fee_bps = float(fee_bps)
-        self.slippage_bps = float(slippage_bps)
-        self.stop_pct = float(stop_pct)
-        self.target_pct = float(target_pct)
+        self.fee_bps = float(config.backtest["fee_bps"])
+        self.slippage_bps = float(config.backtest["slippage_bps"])
+        self.stop_pct = float(config.backtest["stop_pct"])
+        self.target_pct = float(config.backtest["target_pct"])
+        self.use_atr = config.signals["atr_signal"]["use_atr"]
+        self.atr_multiplier_stop = config.signals["atr_signal"]["atr_multiplier_stop"]
+        self.atr_multiplier_target = config.signals["atr_signal"]["atr_multiplier_target"]
+
         self.trades = []
         self.equity = []
+        self.signals_dict = signals_dict
     
     def _apply_costs(self,notional):
         fee = abs(notional)*self.fee_bps/10_000.0
@@ -36,13 +43,24 @@ class Portfolio:
         if total > self.cash:
             return 
         self.cash -= total
-        entry_price = px
-        stop_loss = entry_price * (1 - self.stop_pct) if self.stop_pct > 0 else None
-        target = entry_price * (1 + self.target_pct) if self.target_pct > 0 else None
+        
+        if self.signals_dict and ticker in self.signals_dict:
+            df = self.signals_dict[ticker]
+            if date in df.index:
+                atr = df.loc[date, "ATR_at_Entry"]
+                if pd.isna(atr) or atr <= 0:
+                    atr = px * 0.02  # fallback 2%
+
+        if self.use_atr:
+            stop_loss = px - (atr*self.atr_multiplier_stop)
+            target = px + (atr*self.atr_multiplier_target)
+        else:
+            stop_loss = px * (1 - self.stop_pct) if self.stop_pct > 0 else None
+            target = px * (1 + self.target_pct) if self.target_pct > 0 else None
 
         self.positions[ticker] = {
         'shares': shares,
-        'entry_price': entry_price,
+        'entry_price': px,
         'stop_loss': stop_loss,
         'target': target}
         self.trades.append({"Date": date, "Ticker": ticker, "Side": "BUY", "Price": px, "Shares": shares, "Fee": fee, "Reason": reason})

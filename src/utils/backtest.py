@@ -17,7 +17,7 @@ def backtest(signals_dict_or_df,config):
         signals_dict = {k: v.copy() for k, v in signals_dict_or_df.items()}
     
     all_dates = sorted(set().union(*[df.index for df in signals_dict.values()]))
-    port = Portfolio(starting_cash=config.backtest["starting_cash"],fee_bps=config.backtest["fee_bps"], slippage_bps=config.backtest["slippage_bps"],stop_pct=config.backtest["stop_pct"], target_pct=config.backtest["target_pct"])
+    port = Portfolio(config,signals_dict)
     posture = {t: 0 for t in signals_dict}
     
     for trade_date in all_dates:

@@ -22,17 +22,24 @@ signals:
   bb_signal:
     period: 20
     std: 2.0
+  
+  atr_signal:
+    use_atr: true
+    period: 14
+    atr_multiplier_stop: 2.0      
+    atr_multiplier_target: 3.0
 
   score_threshold_buy: 0.5
   score_threshold_sell: -0.5
 
+
 backtest:
-  starting_cash: 100000
+  starting_cash: 10000
   fee_bps: 5          # 0.05%
   slippage_bps: 1     # 0.01%
-  top_n_buys: 3
+  top_n_buys: 5
   allocate_equal_on_buy: false
-  max_daily_exposure_pct: 0.30
+  max_daily_exposure_pct: 0.60
 
   stop_pct: 0.05      # 5%
   target_pct: 0.10    # 10%
