@@ -6,14 +6,8 @@ import yfinance as yf
 from datetime import date, timedelta
 from typing import Dict, List, Tuple
 
-from .portfolio import load_portfolio_csv, save_portfolio_csv, Portfolio  
 
-
-
-
-def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],posture,trade_date: date,allocate_equal_on_buy, top_n_buys: int = 3):
-
-    # 1) Decide trades for tickers that have this date
+def _collect_signal_trades(signals_dict: Dict[str, pd.DataFrame],posture: dict,trade_date: date,top_n_buys: int):
     todays_buys_candidates = []
     todays_sells = []
     for tkr, df in signals_dict.items():
@@ -33,7 +27,9 @@ def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],
         todays_buys = [(tkr, px) for tkr, px, _ in todays_buys_candidates[:top_n_buys]]
     else:
         todays_buys = []
+    return todays_buys, todays_sells
 
+def _exec_sells(signals_dict: Dict[str, pd.DataFrame],port: List[str],posture: dict,trade_date: date,todays_sells):
     # 2) Execute sells first (free up cash)
     for tkr, px in todays_sells:
         port.sell_all(tkr, px, trade_date, reason="indicator")
@@ -65,6 +61,9 @@ def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],
         port.sell_all(tkr, px, trade_date, reason="stoploss")
         posture[tkr] = 0
 
+    return posture,port
+
+def _exec_buys(port: List[str],posture: dict,trade_date: date,todays_buys,allocate_equal_on_buy):
     # 3) Execute buys (allocate equally across new buys if requested)
     if todays_buys:
         if allocate_equal_on_buy:
@@ -73,13 +72,26 @@ def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],
                 port.buy_cash_all(tkr, px, trade_date, cash_to_use=cash_each, reason="indicator")
                 if tkr in port.positions and port.positions[tkr]['shares'] > 0:
                     posture[tkr] = 1
-    
+
+    return posture,port
+
+def _mark_to_mark(signals_dict: Dict[str, pd.DataFrame],port: List[str],trade_date: date):
     # 4) Mark to market using Close prices of today (if available)
     close_prices = {}
     for tkr, df in signals_dict.items():
         if trade_date in df.index:
             close_prices[tkr] = df.loc[trade_date,"Close"]
     port.mark_to_market(trade_date,close_prices)
-    
+    return port
+
+
+
+
+def execute_user_for_date(signals_dict: Dict[str, pd.DataFrame],port: List[str],posture,trade_date: date,allocate_equal_on_buy, top_n_buys):
+
+    todays_buys,todays_sells=_collect_signal_trades(signals_dict,posture,trade_date,top_n_buys)
+    posture,port = _exec_sells(signals_dict,port,posture,trade_date,todays_sells)
+    posture,port = _exec_buys(port,posture,trade_date,todays_buys,allocate_equal_on_buy)
+    port = _mark_to_mark(signals_dict,port,trade_date)
     
     return port, posture

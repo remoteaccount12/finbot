@@ -150,3 +150,13 @@ flowchart TD
     I --> J[Compute metrics]
     J --> K[print(summary)]
     K --> L[Save CSVs]
+
+
+
+#Assumptions 
+1. exec.py
+#Buy only if you don't already have that stock
+#Sell only if you already have that stock ie no shorting 
+#Execute sells first (free up cash)
+
+#For each stock budget is total cash/num of stocks 

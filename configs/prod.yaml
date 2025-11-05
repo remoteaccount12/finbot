@@ -1,0 +1,37 @@
+signals:
+  indicators:
+    - ma_cross
+    # - macd_signal
+    # - bb_signal
+    # - rsi_signal
+
+  ma_cross:
+    short_window: 50
+    long_window: 200
+
+  macd_signal:
+    fast: 12 
+    slow: 26
+    signal: 9
+  
+  rsi_signal:
+    period: 14
+    overbought: 70
+    oversold: 30
+  
+  bb_signal:
+    period: 20
+    std: 2.0
+
+  score_threshold_buy: 0.99
+  score_threshold_sell: -0.99
+
+backtest:
+  starting_cash: 100000
+  fee_bps: 5          # 0.05%
+  slippage_bps: 1     # 0.01%
+  top_n_buys: 3
+  allocate_equal_on_buy: true
+
+  stop_pct: 0.05      # 5%
+  target_pct: 0.10    # 10%

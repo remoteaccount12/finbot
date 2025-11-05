@@ -3,16 +3,20 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 
-def _ma_cross(df: pd.DataFrame, short: int = 20, long: int = 50) -> pd.Series:
+
+def _ma_cross(df: pd.DataFrame, config) -> pd.Series:
     """+1 when short > long, -1 when short < long, 0 otherwise."""
-    s = df["Close"].rolling(window=short).mean()
-    l = df["Close"].rolling(window=long).mean()
+    s = df["Close"].rolling(window=config.signals["ma_cross"]['short_window']).mean()
+    l = df["Close"].rolling(window=config.signals["ma_cross"]['long_window']).mean()
     return np.where(s > l, 1.0, np.where(s < l, -1.0, 0.0))
 
-def _rsi_signal(df: pd.DataFrame, period: int = 14,
-                overbought: int = 70, oversold: int = 30) -> pd.Series:
+def _rsi_signal(df: pd.DataFrame, config) -> pd.Series:
     """Scale RSI to -1 … +1 (oversold → +1, overbought → -1)."""
     delta = df["Close"].diff()
+    period = config.signals["rsi_signal"]['period']
+    oversold = config.signals["rsi_signal"]['oversold']
+    overbought = config.signals["rsi_signal"]['overbought']
+
     up, down = delta.clip(lower=0), -delta.clip(upper=0)
     roll_up   = up.ewm(alpha=1/period, adjust=False).mean()
     roll_down = down.ewm(alpha=1/period, adjust=False).mean()
@@ -24,9 +28,11 @@ def _rsi_signal(df: pd.DataFrame, period: int = 14,
     score = score.where(rsi < overbought, -(rsi - overbought) / (100 - overbought))
     return score.clip(-1, 1)
 
-def _macd_signal(df: pd.DataFrame,
-                 fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
+def _macd_signal(df: pd.DataFrame,config) -> pd.Series:
     """Normalised MACD histogram → -1 … +1."""
+    signal = config.signals["macd_signal"]['signal']
+    fast = config.signals["macd_signal"]['fast']
+    slow = config.signals["macd_signal"]['slow']
     e1 = df["Close"].ewm(span=fast,  adjust=False).mean()
     e2 = df["Close"].ewm(span=slow,  adjust=False).mean()
     macd = e1 - e2
@@ -36,8 +42,10 @@ def _macd_signal(df: pd.DataFrame,
     vol = hist.abs().rolling(window=20).quantile(0.95).replace(0, np.nan)
     return (hist / vol).clip(-1, 1).fillna(0)
 
-def _bb_signal(df: pd.DataFrame, period: int = 20, std: float = 2) -> pd.Series:
+def _bb_signal(df: pd.DataFrame, config) -> pd.Series:
     """BB: +1 oversold (below lower), -1 overbought (above upper)."""
+    period = config.signals["bb_signal"]['period']
+    std = config.signals["bb_signal"]['std']
     mid = df["Close"].rolling(period).mean()
     stddev = df["Close"].rolling(period).std()
     upper = mid + std * stddev
@@ -45,20 +53,23 @@ def _bb_signal(df: pd.DataFrame, period: int = 20, std: float = 2) -> pd.Series:
     return np.where(df["Close"] < lower, 1.0,
            np.where(df["Close"] > upper, -1.0, 0.0))
 
+_INDICATOR_MAP = {
+    "ma_cross": _ma_cross,
+    "rsi_signal": _rsi_signal,
+    "macd_signal": _macd_signal,
+    "bb_signal": _bb_signal,
+}
 
-# _DEFAULT_INDICATORS = [_ma_cross, _rsi_signal, _macd_signal]
-# _DEFAULT_INDICATORS = [_bb_signal, _rsi_signal, _macd_signal]
-_DEFAULT_INDICATORS = [_ma_cross, _macd_signal]
 
-def algorithm(input_df,start,end,interval='1d',indicators=None):
+def algorithm(input_df,start,end,config,interval='1d'):
     if input_df.empty:
         return None
     
-    ind_list = indicators if indicators is not None else _DEFAULT_INDICATORS
+    ind_list = config.signals["indicators"]
     scores = []
     for i, fn in enumerate(ind_list):
         col = f"_score{i}"
-        input_df[col] = fn(input_df)
+        input_df[col] = _INDICATOR_MAP[fn](input_df,config)
         scores.append(input_df[col])
 
     # Aggregate score = simple average

@@ -2,7 +2,7 @@ import pandas as pd
 import os 
 
 class Portfolio:
-    def __init__(self,starting_cash=1_000,fee_bps=5,slippage_bps=1,stop_pct=0.07, target_pct=0.15):
+    def __init__(self,starting_cash,fee_bps,slippage_bps,stop_pct, target_pct):
         self.cash = float(starting_cash)
         self.positions = {}
         self.fee_bps = float(fee_bps)
